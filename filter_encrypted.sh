@@ -3,7 +3,7 @@
 # Some PDFs are encrypted, and we cannot open it directly in the table-extraction parser. This decrypts an entire directory.
 
 if [[ -z "$1" || -z "$2" ]]; then
-  echo 'Usage: ./decrypt.sh <raw_pdf_dir> <output_dir>'
+  echo 'Usage: ./filter_encrypted.sh <raw_pdf_dir> <output_dir>'
   exit
 fi
 #pdfs="$(find $1 -maxdepth 1 -iname '*.pdf')"
@@ -20,6 +20,7 @@ function dpdf {
     # outpdf="$2/$outpdf"
     # echo "Decrypting $f"
     # gs -q -dNOPAUSE -dBATCH -sDEVICE=pdfwrite -sOutputFile=$outpdf -c .setpdfwrite -f $f
+    echo "[info] Skipping $f"
   else
     echo "Copying $f to $2"
     cp $f $2

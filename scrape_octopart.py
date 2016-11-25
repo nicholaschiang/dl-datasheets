@@ -8,13 +8,16 @@ import time
 import argparse
 import re
 
+# Category ID for Discrete Semiconductors > Transistors > BJTs
+TRANSISTOR_ID = b814751e89ff63d3
+
 def find_total_hits(search_query):
     """
     Function: find_total_hits
     --------------------
     Returns the number of hits that correspond to the search query.
     """
-    url = "http://octopart.com/api/v3/parts/search"
+    url = "http://octopart.com/api/v3/categories/"
     # NOTE: Use your API key here (https://octopart.com/api/register)
     url += "?apikey=09b32c6c"
     args = [
@@ -22,8 +25,6 @@ def find_total_hits(search_query):
         ('start', 0),
         ('limit', 1), #change to increase number of datasheets
         ('include[]','datasheets')
-        # ('include[]','specs'),
-        # ('include[]','descriptions')
     ]
     url += '&' + urllib.urlencode(args)
 
