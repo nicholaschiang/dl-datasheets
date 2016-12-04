@@ -20,7 +20,8 @@ function dpdf {
     # outpdf="$2/$outpdf"
     # echo "Decrypting $f"
     # gs -q -dNOPAUSE -dBATCH -sDEVICE=pdfwrite -sOutputFile=$outpdf -c .setpdfwrite -f $f
-    echo "[info] Skipping $f"
+    # echo "[info] Skipping $f"
+    :
   else
     echo "Copying $f to $2"
     cp $f $2
