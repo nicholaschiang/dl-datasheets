@@ -12,9 +12,6 @@ dev_html = "/home/lwhsiao/Desktop/data/dev_html/"
 
 directories = [(dev_pdf, dev_html), (train_digikey_pdf, train_digikey_html), (train_other_pdf, train_other_html)]
 
-# output = subprocess.Popen(["pdffonts", "/home/lwhsiao/Desktop/data/workspace/2SC2482-Toshiba-datasheet-101457.pdf"], stdout=subprocess.PIPE).communicate()[0]
-output = subprocess.Popen(["pdffonts", "/home/lwhsiao/Desktop/data/workspace/2SC3503-Sanyo-datasheet-101941.pdf"], stdout=subprocess.PIPE).communicate()[0]
-
 log = open("removed_files.txt", "w")
 
 for pdf_directory, html_directory in directories:
