@@ -26,7 +26,16 @@ def parse_args():
 
     return args.src_dir, args.dest_dir, args.verbose
 
-def download_datasheets(src, dest, verbose):
+def normalize_part(old_part):
+    old_part = old_part.rsplit(",")[0] # Drop the stuff after a comma
+    old_part = old_part.replace("(Q)", '') # drop (Q) for toshiba
+    old_part = old_part.replace("(F)", '') # drop (F) for toshiba
+    old_part = old_part.replace(' ', '') # remove whitespace
+    old_part = old_part.replace('/GOLD', '') # remove "/GOLD"
+    old_part = old_part.upper()
+    return old_part
+
+def create_part_dictionary(src, dest, verbose):
     """
     For each CSV at the 1st level of the src directory, download the datasheet
     and save it to the destination directory.
@@ -51,59 +60,36 @@ def download_datasheets(src, dest, verbose):
     if not os.path.exists(dest):
         os.makedirs(dest)
 
+    dest = dest + "digikey_part_dictionary.csv"
+
+    all_parts = set()
+
     for filename in os.listdir(src):
-        page_count = -1
         if filename.endswith(".csv"):
             path = os.path.join(src, filename)
-            print('[info] Downloading from %s' % path)
+            print('[info] Parsing from %s' % path)
             with open(path, 'rb') as csvfile:
                 reader = csv.reader(csvfile, delimiter=',')
+                next(reader, None) # skip header row
                 for row in reader:
-
-                    # skip the header row
-                    if page_count == -1:
-                        page_count += 1
-                        continue
-
                     # First element of each row is the URL to the PDF
                     url = row[DATASHEET]
-
-                    # Append 'http:' if non is found in the url. This is because
-                    # Digikey sometimes has "//media.digikey.com/..." urls.
-                    if not url.startswith("http"):
+                    part = row[PARTNUM]
+                    part = normalize_part(part)
+                    url = url.strip().replace(",", "%2C")
+                    if url.startswith("//"):
                         url = "http:" + url
+                    all_parts.add((part, url))
+                    total_count += 1
 
-                    if url is not None and url != '-':
-                        # Download the PDF
-                        try:
-                            outfile =  dest + re.sub('[^A-Za-z0-9]+', '', row[MANUF]) + '_' + re.sub('[^A-Za-z0-9]+', '', row[PARTNUM]) + ".pdf"
-                            print "[info]   Saving %s" % outfile
-                            response = urllib2.urlopen(url)
-                            file = open(outfile, 'w')
-                            file.write(response.read())
-                            file.close()
-                            page_count += 1
-                        except urllib2.HTTPError, err:
-                            if verbose:
-                                if err.code == 404:
-                                    print "[error] Page not found!..."
-                                elif err.code == 403:
-                                    print "[error] Access Denied!"
-                                else:
-                                    print "[error] HTTP Error code ", err.code
-                            continue # advance to next datasheet rather than crashing
-                        except urllib2.URLError:
-                            if verbose:
-                                print "[error] URLError."
-                            continue
-                        except:
-                            print "[error] urllib2 error."
-                            continue
 
-                        time.sleep(0.4) # Limit ourselves to ~3 HTTP Requests/second
-            total_count += page_count
+    print '[info] Parse %d parts.' % total_count
 
-    print '[info] Downloaded %d datasheets.' % total_count
+    outfile = open(dest, 'w')
+    for part, url in all_parts:
+        if url == '' or url == '-':
+            url = "N/A"
+        outfile.write(part + ', ' + url + "\n")
 
 # Main Function
 if __name__ == "__main__":
@@ -112,6 +98,6 @@ if __name__ == "__main__":
     src, dest, verbose= parse_args()    # Parse commandline arguments
     start_time = time.time()
     print '[info] Downloading datasheets found in %s' % src
-    download_datasheets(src, dest, verbose)
+    create_part_dictionary(src, dest, verbose)
     finish_time = time.time()
     print '[info] Took', finish_time - start_time, 'sec total.'
