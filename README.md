@@ -1,2 +1,3 @@
 # dl-datasheets
-Some useful scripts for downloaded datasheets to create larger datasets.
+
+Some useful scripts for downloading datasheets to create large datasets.
