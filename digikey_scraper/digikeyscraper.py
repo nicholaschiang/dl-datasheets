@@ -112,7 +112,7 @@ def download_csv(csv_dir, fv_code, pages):
     Scrape the CSV data from the Digikey website for the specified product family.
     """
     data= {
-        'fv' : fv_code, # 'ffe002af' for op-amps
+        'fv' : fv_code, # 'ffe002af' for op-amps and 'ffe001b4' for circular connectors
         'mnonly':'0',
         'newproducts':'0',
         'ColumnSort':'0',
@@ -139,9 +139,6 @@ def download_csv(csv_dir, fv_code, pages):
 
 
 
-    # TODO (hchiang): Can we clean up the output of these requests?
-
-
 def download_pdf(src, dest):
     """
     For each CSV at the 1st level of the src directory, download the datasheet
@@ -163,6 +160,8 @@ def download_pdf(src, dest):
                 for row in reader:
                     # First element of each row is the URL to the PDF
                     url = row[DATASHEET]
+                    manuf = re.sub('[^A-Za-z0-9\-\_]+', '', row[MANUF])
+                    partnum = re.sub('[^A-Za-z0-9\-\_]+', '', row[PARTNUM])
 
                     # Right now, we will always filter duplicate PDFs.
                     if url == '-' or url is None or url in unique_urls:
@@ -197,8 +196,8 @@ def download_pdf(src, dest):
                                 path = urlparse.urlsplit(response.url).path
                                 basename = posixpath.basename(path)
 
-                        basename = re.sub('[^A-Za-z0-9\.\-\_]+', '', basename) # strip away weird characters
-                        outfile =  dest + basename # just type the original filename
+                        # basename = re.sub('[^A-Za-z0-9\.\-\_]+', '', basename) # strip away weird characters
+                        outfile = dest + manuf + "_" + partnum + ".pdf"  # just type the original filename
 
                         if not (outfile.endswith('.pdf') or outfile.endswith(".PDF")):
                             outfile = outfile + ".pdf"
