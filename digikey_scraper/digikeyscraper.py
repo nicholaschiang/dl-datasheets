@@ -12,6 +12,7 @@ from pprint import pprint
 import subprocess
 import urlparse
 import posixpath
+from tqdm import tqdm
 
 import scraper_logging
 import scraper_args
@@ -150,6 +151,9 @@ def download_pdf(src, dest):
 
     unique_urls = set()
 
+    #progress bar
+    for i in tqdm(range(int(total_count))):
+        pass
     for filename in sorted(os.listdir(src)):
         if filename.endswith(".csv"):
             path = os.path.join(src, filename)
@@ -159,7 +163,7 @@ def download_pdf(src, dest):
                 next(reader, None) # skip the header row
                 for row in reader:
                     # First element of each row is the URL to the PDF
-                    url = row[DATASHEET]
+                    url = row[DATASHEET] #TEMP SET URL AS ERROR
                     manuf = re.sub('[^A-Za-z0-9\-\_]+', '', row[MANUF])
                     partnum = re.sub('[^A-Za-z0-9\-\_]+', '', row[PARTNUM])
 
@@ -174,7 +178,7 @@ def download_pdf(src, dest):
 
                     try:
                         opener = urllib2.build_opener()
-                        opener.addheaders = [('User-agent', 'Mozilla/5.0')]
+                        opener.addheaders = [('User-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.77 Safari/537.36')]
                         response = opener.open(url)
                         unique_urls.add(url) # track unique urls
 
