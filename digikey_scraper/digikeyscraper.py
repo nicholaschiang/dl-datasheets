@@ -1,21 +1,30 @@
 #! /usr/bin/env python
 
-import requests
-import sys, os
-import re
-import urllib
-import urllib2
-import time
 import argparse
 import csv
-from pprint import pprint
-import subprocess
-import urlparse
+import logging
+import os
 import posixpath
-from tqdm import tqdm
+import re
+import subprocess
+import sys
+import time
+import urllib
+import urllib2
+import urlparse
+from pprint import pprint
 
-import scraper_logging
+import requests
+from tqdm import tqdm, trange
+
 import scraper_args
+
+logging.basicConfig(
+    format="[%(asctime)s][%(levelname)s] %(name)s - %(message)s",
+    filename="digikey.log",
+    level=logging.INFO,
+)
+logger = logging.getLogger(__name__)
 
 # To make indexing into Digikey CSV more readable
 MANUF = 4
@@ -26,7 +35,7 @@ def filter_ocr(pdf_dir):
     """
     Use `pdffonts` to check for PDFs that are just images and would require OCR.
     """
-    scraper_logging.debug_print("Begin removing PDFs that need OCR...")
+    logger.info("Begin removing PDFs that need OCR...")
     count = 0
     src_files = os.listdir(pdf_dir)
     for pdf in src_files:
@@ -40,7 +49,7 @@ def filter_ocr(pdf_dir):
                 output = subprocess.check_output(["pdffonts", pdf_filename], stderr=subprocess.STDOUT)
             except subprocess.CalledProcessError:
                 # Error usually means we got a HTML file instead of an actual PDF.
-                scraper_logging.debug_print_verbose("pdffonts error on %s. Removing." % pdf_filename)
+                logger.debug("pdffonts error on %s. Removing." % pdf_filename)
                 os.remove(pdf_filename)
                 count += 1
                 continue
@@ -48,17 +57,17 @@ def filter_ocr(pdf_dir):
             if (len(output.split('\n')) <= 3):
                 count += 1
                 # this has no fonts and thus is an image.
-                scraper_logging.debug_print_verbose("OCR Filtering: " + pdf_filename)
+                logger.debug("OCR Filtering: " + pdf_filename)
                 os.remove(pdf_filename)
 
-    scraper_logging.debug_print("Finished removing %s PDFs that needed OCR." % count)
+    logger.info("Finished removing %s PDFs that needed OCR." % count)
 
 def filter_encrypted(pdf_dir):
     """
     Remove PDFs that are encrypted, since Acrobat cannot convert them to HTML.
     """
     pattern = re.compile(r"Encrypted:\s*yes", re.U)
-    scraper_logging.debug_print("Begin removing PDFs that are encrypted...")
+    logger.info("Begin removing PDFs that are encrypted...")
     count = 0
     src_files = os.listdir(pdf_dir)
     for pdf in src_files:
@@ -72,7 +81,7 @@ def filter_encrypted(pdf_dir):
                 output = subprocess.check_output(["pdfinfo", pdf_filename], stderr=subprocess.STDOUT)
             except subprocess.CalledProcessError:
                 # Error usually means we got a HTML file instead of an actual PDF.
-                scraper_logging.debug_print_verbose("pdfinfo error on %s. Removing." % pdf_filename)
+                logger.debug("pdfinfo error on %s. Removing." % pdf_filename)
                 os.remove(pdf_filename)
                 count += 1
                 continue
@@ -81,10 +90,10 @@ def filter_encrypted(pdf_dir):
             if (pattern.search(output)):
                 count += 1
                 # this has no fonts and thus is an image.
-                scraper_logging.debug_print_verbose("Encrypted Filtering: " + pdf_filename)
+                logger.debug("Encrypted Filtering: " + pdf_filename)
                 os.remove(pdf_filename)
 
-    scraper_logging.debug_print("Finished removing %s PDFs that were encrypted." % count)
+    logger.info("Finished removing %s PDFs that were encrypted." % count)
 
 def expected_unique_pdfs(csv_dir):
     """
@@ -95,7 +104,7 @@ def expected_unique_pdfs(csv_dir):
     for filename in sorted(os.listdir(csv_dir)):
         if filename.endswith(".csv"):
             path = os.path.join(csv_dir, filename)
-            scraper_logging.debug_print_verbose('Counting URLs from %s' % path)
+            logger.debug('Counting URLs from %s' % path)
             with open(path, 'rb') as csvinput:
                 reader = csv.reader(csvinput)
                 next(reader, None) # skip the header row
@@ -106,12 +115,14 @@ def expected_unique_pdfs(csv_dir):
                     # Right now, we will always filter duplicate PDFs.
                     if not (url == '-' or url is None):
                         unique_urls.add(url)
-    scraper_logging.debug_print("Expected unique PDFs: %d" % len(unique_urls))
+    logger.info("Expected unique PDFs: %d" % len(unique_urls))
 
 def download_csv(csv_dir, fv_code, pages):
     """
     Scrape the CSV data from the Digikey website for the specified product family.
     """
+    print("Downloading CSVs...")
+
     data= {
         'fv' : fv_code, # 'ffe002af' for op-amps and 'ffe001b4' for circular connectors
         'mnonly':'0',
@@ -126,8 +137,8 @@ def download_csv(csv_dir, fv_code, pages):
         'fid':'0',
         'pageSize':'500'
     }
-    scraper_logging.debug_print("Downloading " + str(pages) + " pages...")
-    for i in range(pages):
+    logger.info("Downloading " + str(pages) + " pages...")
+    for i in trange(pages):
         # Make a bunch of files since each page starts with the CSV header.
         # We don't want random header rows in the CSV file.
         filename = csv_dir + fv_code + "_" + str(i) + ".csv"
@@ -136,7 +147,7 @@ def download_csv(csv_dir, fv_code, pages):
         r = requests.get('http://www.digikey.com/product-search/download.csv',params=data)
         target.write(r.text.encode('utf-8'))
         target.close()
-        scraper_logging.debug_print_verbose("Saved CSV: " + filename)
+        logger.debug("Saved CSV: " + filename)
 
 
 
@@ -146,24 +157,23 @@ def download_pdf(src, dest):
     and save it to the destination directory.
     """
 
+    print("Downloading PDFs...")
 
     total_count = 0
 
     unique_urls = set()
 
     #progress bar
-    for i in tqdm(range(int(total_count))):
-        pass
-    for filename in sorted(os.listdir(src)):
+    for filename in tqdm(sorted(os.listdir(src))):
         if filename.endswith(".csv"):
             path = os.path.join(src, filename)
-            scraper_logging.debug_print('Downloading from %s' % path)
+            logger.info('Downloading from %s' % path)
             with open(path, 'rb') as csvinput:
                 reader = csv.reader(csvinput)
                 next(reader, None) # skip the header row
                 for row in reader:
                     # First element of each row is the URL to the PDF
-                    url = row[DATASHEET] #TEMP SET URL AS ERROR
+                    url = row[DATASHEET]
                     manuf = re.sub('[^A-Za-z0-9\-\_]+', '', row[MANUF])
                     partnum = re.sub('[^A-Za-z0-9\-\_]+', '', row[PARTNUM])
 
@@ -209,30 +219,30 @@ def download_pdf(src, dest):
                         # Lowercase everything to ensure consistency in extensions and remove more duplicates
                         outfile = outfile.lower()
 
-                        scraper_logging.debug_print_verbose("   Saving %s" % outfile)
+                        logger.debug("   Saving %s" % outfile)
                         pdf_file = open(outfile, 'w')
                         pdf_file.write(response.read())
                         pdf_file.close()
                         total_count += 1
                     except urllib2.HTTPError, err:
                         if err.code == 404:
-                            scraper_logging.debug_print_verbose("    Page not found: %s" % url)
+                            logger.error("    Page not found: %s" % url)
                         elif err.code == 403:
                              # These can mostly be avoided by specifying a user-agent
                              # http://stackoverflow.com/questions/11450649/python-urllib2-cant-get-google-url
-                            scraper_logging.debug_print_verbose("    Access Denied: %s" % url)
+                            logger.error("    Access Denied: %s" % url)
                         else:
-                            scraper_logging.debug_print_verbose("    HTTP Error code %s for %s" % (err.code, url))
+                            logger.error("    HTTP Error code %s for %s" % (err.code, url))
                         continue # advance to next datasheet rather than crashing
                     except urllib2.URLError:
-                        scraper_logging.debug_print_verbose("    urllib2.URLError for %s" % url)
+                        logger.error("    urllib2.URLError for %s" % url)
                         continue
                     except Exception as e:
-                        scraper_logging.debug_print_error("Exception %s on URL %s" % (e, url))
+                        logger.error("Exception %s on URL %s" % (e, url))
                         continue
 
                     time.sleep(0.1) # Limit our HTTP Requests rate slightly for courtesy.
-    scraper_logging.debug_print('Downloaded %d datasheets.' % total_count)
+    logger.info('Downloaded %d datasheets.' % total_count)
 
 # Main Function
 if __name__ == "__main__":
@@ -240,7 +250,7 @@ if __name__ == "__main__":
     sys.setdefaultencoding('utf-8')
     scraper_args.parse_args()    # Parse commandline arguments
     start_time = time.time()
-    scraper_logging.debug_print('Creating PDF dataset from datasheets in %s' % scraper_args.get_fv_code())
+    logger.info('Creating PDF dataset from datasheets in %s' % scraper_args.get_fv_code())
 
     # First, download all the table entries from Digikey in a single CSV
     if not scraper_args.skip_csv_dl():
@@ -264,4 +274,4 @@ if __name__ == "__main__":
 
 
     finish_time = time.time()
-    scraper_logging.debug_print('Took ' + str(finish_time - start_time) + ' sec total.')
+    logger.info('Took ' + str(finish_time - start_time) + ' sec total.')
